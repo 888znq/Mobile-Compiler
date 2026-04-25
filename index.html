@@ -4,11 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>AI Compile - Zero Friction</title>
-
-<link rel="manifest" href="./manifest.json">
-<meta name="theme-color" content="#000432">
-<link rel="apple-touch-icon" href="./icon-192.png">
-
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 html, body { width: 100%; height: 100%; overflow: hidden; background: #000432; font-family: monospace; }
@@ -410,15 +405,6 @@ window.addEventListener('unhandledrejection',function(e){ window.parent.postMess
       toast("❌ Allow clipboard permissions!");
     }
   });
-
-  // --- PWA Service Worker Registration ---
-  if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.register('./sw.js')
-        .then(reg => console.log('SW Registered!', reg))
-        .catch(err => console.error('SW failed', err));
-    });
-  }
 </script>
 </body>
 </html>
