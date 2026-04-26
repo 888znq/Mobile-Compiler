@@ -4,6 +4,13 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>AI Compile - Zero Friction</title>
+
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#000432">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="apple-touch-icon" href="icon-192.png">
+
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 html, body { width: 100%; height: 100%; overflow: hidden; background: #000432; font-family: monospace; }
@@ -40,32 +47,46 @@ button.btn {
   transition: all 0.2s ease; white-space: nowrap;
 }
 button.btn:active { transform: scale(0.95); }
-button.btn:disabled { opacity: 0.5; border-color: #555; color: #888; }
+button.btn:disabled { opacity: 0.5; border-color: #555; color: #888; cursor: default; }
 
 #toast {
   position: fixed; bottom: 60px; left: 50%; transform: translateX(-50%);
-  padding: 8px 16px; border-radius: 20px; font: 700 12px/1 monospace;
-  background: rgba(0, 0, 0, .9); border: 1px solid #00ff88; color: #00ff88;
+  padding: 8px 18px; border-radius: 20px; font: 700 12px/1.5 monospace;
+  background: rgba(0, 0, 0, .93); border: 1px solid #00ff88; color: #00ff88;
   z-index: 150; opacity: 0; pointer-events: none; transition: opacity .2s;
+  max-width: 90vw; text-align: center; white-space: pre-line;
 }
 #toast.show { opacity: 1; }
+#toast.warn { border-color: #ffb86c; color: #ffb86c; }
+#toast.err  { border-color: #ff5555; color: #ff5555; }
 
 #astPanel {
   position: fixed; top: 50px; left: 10px; z-index: 98;
   background: rgba(0, 0, 0, 0.95); border: 1px solid #444; border-radius: 8px;
-  padding: 12px; color: #fff; font-size: 11px; width: 85vw; max-height: 60vh; 
+  padding: 12px; color: #fff; font-size: 11px; width: 85vw; max-height: 60vh;
   overflow-y: auto; display: none; line-height: 1.6;
 }
 #astPanel h4 { color: #8be9fd; margin-bottom: 8px; }
 .ast-ok   { color: #50fa7b; }
+.ast-warn { color: #ffb86c; }
 .ast-err  { color: #ff5555; font-weight: bold; }
 
 #errOverlay {
   position: fixed; top: 50px; left: 50%; transform: translateX(-50%);
   background: rgba(160, 0, 0, 0.95); border: 1px solid #ff5555; border-radius: 8px;
-  padding: 10px; color: #fff; font: 700 11px/1.4 monospace; z-index: 200; 
+  padding: 10px; color: #fff; font: 700 11px/1.4 monospace; z-index: 200;
   width: 90vw; display: none; white-space: pre-wrap; box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+  cursor: pointer;
 }
+
+#diffPanel {
+  position: fixed; bottom: 50px; right: 10px; z-index: 110;
+  background: rgba(0,0,0,0.96); border: 1px solid #444; border-radius: 8px;
+  padding: 10px 14px; font-size: 11px; max-width: 340px; max-height: 40vh;
+  overflow-y: auto; display: none; line-height: 1.7; color: #ccc;
+}
+#diffPanel h5 { color: #8be9fd; margin-bottom: 6px; font-size: 11px; }
+.diff-add { color: #50fa7b; } .diff-del { color: #ff5555; }
 </style>
 </head>
 <body>
@@ -74,194 +95,210 @@ button.btn:disabled { opacity: 0.5; border-color: #555; color: #888; }
 <div id="fring"></div>
 
 <div id="controls">
-  <button id="undoBtn" class="btn" style="border-color: #ffb86c; color: #ffb86c;" disabled>↩ Undo</button>
-  <button id="pasteBtn" class="btn" style="border-color: #50fa7b; color: #50fa7b;">⚡ Paste & Auto-Apply</button>
-  
-  <input type="file" id="fileInput" style="display: none;" accept=".html,.js,.css,.txt">
-  <button id="fileBtn" class="btn">📂 Load</button>
-  
-  <button id="exportBtn" class="btn" style="border-color: #f1fa8c; color: #f1fa8c; display: none;">💾 Export</button>
-  <button id="clearBtn" class="btn" style="border-color: #ff5555; color: #ff5555; display: none;">🗑️ Reset</button>
+  <button id="undoBtn" class="btn" style="border-color:#ffb86c;color:#ffb86c;" disabled>&#8617; Undo</button>
+  <button id="redoBtn" class="btn" style="border-color:#ffb86c;color:#ffb86c;" disabled>&#8618; Redo</button>
+  <button id="pasteBtn" class="btn" style="border-color:#50fa7b;color:#50fa7b;">&#9889; Paste &amp; Auto-Apply</button>
+
+  <input type="file" id="fileInput" style="display:none;" accept=".html,.js,.css,.txt">
+  <button id="fileBtn" class="btn">&#128194; Load</button>
+
+  <button id="exportBtn" class="btn" style="border-color:#f1fa8c;color:#f1fa8c;display:none;">&#128190; Export</button>
+  <button id="clearBtn" class="btn" style="border-color:#ff5555;color:#ff5555;display:none;">&#128465;&#65039; Reset</button>
 </div>
 
 <div id="bottom-controls">
-  <button id="promptBtn" class="btn" style="border-color: #8be9fd; color: #8be9fd;">🤖 Prompt</button>
-  <button id="astBtn" class="btn" style="border-color: #8be9fd; color: #8be9fd;">🧠 AST</button>
+  <button id="promptBtn" class="btn" style="border-color:#8be9fd;color:#8be9fd;">&#129302; Prompt</button>
+  <button id="astBtn"    class="btn" style="border-color:#8be9fd;color:#8be9fd;">&#129504; AST</button>
+  <button id="diffBtn"   class="btn" style="border-color:#bd93f9;color:#bd93f9;display:none;">&#128203; Last Diff</button>
 </div>
 
 <div id="toast"></div>
-<div id="astPanel"><h4>🧠 AST Health</h4><div id="astContent">Load a file to analyse.</div></div>
-<div id="errOverlay"></div>
+<div id="astPanel"><h4>&#129504; AST Health</h4><div id="astContent">Load a file to analyse.</div></div>
+<div id="errOverlay" title="Click to dismiss"></div>
+<div id="diffPanel"><h5>&#128203; Last patch diff</h5><div id="diffContent"></div></div>
 
 <script>
-  const AUTOSAVE_KEY = 'compiler_autosave';
-  let lastClip = '';
-  let sourceContent = '';
-  let undoStack = [];
-  let fileName = 'index.html';
+  var AUTOSAVE_KEY = 'compiler_autosave';
+  var lastClip = '';
+  var sourceContent = '';
+  var undoStack = [];
+  var redoStack = [];
+  var fileName = 'index.html';
+  var lastDiff = [];
 
-  const $pv = document.getElementById('preview');
-  const $fring = document.getElementById('fring');
-  const $toast = document.getElementById('toast');
-  const $astPanel = document.getElementById('astPanel');
-  const $astContent = document.getElementById('astContent');
-  const $errOverlay = document.getElementById('errOverlay');
+  var $pv         = document.getElementById('preview');
+  var $fring      = document.getElementById('fring');
+  var $toast      = document.getElementById('toast');
+  var $astPanel   = document.getElementById('astPanel');
+  var $astContent = document.getElementById('astContent');
+  var $errOverlay = document.getElementById('errOverlay');
+  var $diffPanel  = document.getElementById('diffPanel');
+  var $diffContent= document.getElementById('diffContent');
 
-  // --- INITIALIZATION & AUTOSAVE RECOVERY ---
-  window.addEventListener('DOMContentLoaded', () => {
-    const saved = localStorage.getItem(AUTOSAVE_KEY);
+  // ── SUPER PROMPT ──────────────────────────────────────────────────────────
+  var SUPER_PROMPT = 'Give me the results as Combined Find-and-Replace blocks. Put the old code and the new code inside a single code block separated by exactly ===SPLIT=== on its own line so I only have to click \'copy\' once.\n\nThe 13 Surgery Scenarios You Must Handle:\nScenario 1 (The Swap): Just changing one value or line for another.\nScenario 2 (The Excision): Deleting code while keeping the rest of the file clean. The NEW block must be completely empty — no placeholder comment, no blank lines, nothing.\nScenario 3 (The Injection): "Bolting on" brand new features to existing code.\nScenario 4 (The Interceptor): Adding a safety check or a rule inside an existing process.\nScenario 5 (The Migration): Moving a button or a piece of logic from one place to another.\nScenario 6 (The Refactor): Rewriting a complex math formula or a loop to make it faster.\nScenario 7 (The Sweep): Renaming a specific word/variable everywhere it appears.\nScenario 8 (The Database Bump): Updating saved data settings so the app doesn\'t crash on old info.\nScenario 9 (The Link Shift): Changing where the app connects to (APIs, URLs, or Tokens).\nScenario 10 (The Sync): If you change the "Brain" (Web Worker), you must also fix the "Body" (Main Script).\nScenario 11 (The Layer Fix): Fixing UI issues where things are hidden or unclickable.\nScenario 12 (The Attribute Patch): For changes inside an HTML tag\'s attributes (style, class, data-*), include only that specific tag as the OLD block — do not touch any surrounding HTML.\nScenario 13 (The Nuke Warning): If the requested change requires replacing more than 60% of the file, stop and state that plainly in plain text before any code block, then ask for confirmation before proceeding.\n\nStrict Code Rules:\n- Never convert inline <script> to external <script src="">. All JS must stay inline in the file.\n- If any variable is declared with const or let inside a function or block that gets re-executed, move the declaration outside to the top of the script or convert it to var. Never declare the same identifier twice in the same scope.\n- If the OLD block text appears more than once in the file, expand it to include enough surrounding lines to make it uniquely identifiable.\n- Never reformat or change indentation style. Match the existing tabs/spaces exactly as they appear.\n- The string ===SPLIT=== must never appear inside the OLD or NEW code itself. If it does, refactor that code so it does not contain that string.\n- Never leave any bracket } or parenthesis ) unclosed.\n\nOutput Rules:\n- Response must contain ONLY the code block(s). No warnings, no annotations, no symbols.\n- If you have a concern about the existing code, state it in plain text BEFORE the code block.\n- For multiple independent fixes, separate each OLD===SPLIT===NEW pair with ===BLOCK===.';
+
+  document.getElementById('promptBtn').addEventListener('click', function() {
+    navigator.clipboard.writeText(SUPER_PROMPT)
+      .then(function() { toast('Prompt copied to clipboard!'); })
+      .catch(function() { toast('Failed to copy prompt.', 'err'); });
+  });
+
+  // ── INIT & AUTOSAVE RECOVERY ───────────────────────────────────────────────
+  window.addEventListener('DOMContentLoaded', function() {
+    var saved = localStorage.getItem(AUTOSAVE_KEY);
     if (saved) {
       sourceContent = saved;
       document.getElementById('exportBtn').style.display = 'inline-block';
       document.getElementById('clearBtn').style.display = 'inline-block';
       render(sourceContent);
-      toast("🧠 Recovered from Autosave!");
+      toast('Recovered from autosave!');
     }
   });
 
-  document.getElementById('clearBtn').addEventListener('click', () => {
-    if(confirm("⚠️ Delete your autosaved work and start fresh?")) {
+  document.getElementById('clearBtn').addEventListener('click', function() {
+    if (confirm('Delete your autosaved work and start fresh?')) {
       localStorage.removeItem(AUTOSAVE_KEY);
       sourceContent = '';
+      undoStack = []; redoStack = []; lastDiff = [];
       document.getElementById('exportBtn').style.display = 'none';
       document.getElementById('clearBtn').style.display = 'none';
+      document.getElementById('diffBtn').style.display = 'none';
+      syncUndoRedo();
       render('');
-      toast("🗑️ Memory cleared.");
+      toast('Memory cleared.');
     }
   });
 
-  // --- UI UTILS ---
-  let errTimer;
+  // ── UI UTILS ───────────────────────────────────────────────────────────────
+  var errTimer;
   function showErr(msg) {
-    $errOverlay.textContent = '⚠️ ' + msg;
+    $errOverlay.textContent = 'Error: ' + msg;
     $errOverlay.style.display = 'block';
     clearTimeout(errTimer);
-    errTimer = setTimeout(() => { $errOverlay.style.display = 'none'; }, 6000);
+    errTimer = setTimeout(function() { $errOverlay.style.display = 'none'; }, 8000);
   }
-  window.addEventListener('message', (e) => {
+
+  $errOverlay.addEventListener('click', function() {
+    $errOverlay.style.display = 'none';
+    clearTimeout(errTimer);
+  });
+
+  window.addEventListener('message', function(e) {
     if (e.data && e.data.__compilerErr) showErr(e.data.__compilerErr);
   });
 
   function flash() {
     $fring.classList.add('on');
-    setTimeout(() => $fring.classList.remove('on'), 300);
+    setTimeout(function() { $fring.classList.remove('on'); }, 300);
   }
 
-  function toast(msg, duration = 2000) {
+  var toastTimer;
+  function toast(msg, type, duration) {
+    type = type || 'ok';
+    duration = duration || 2500;
+    clearTimeout(toastTimer);
     $toast.textContent = msg;
-    $toast.classList.add('show');
-    setTimeout(() => $toast.classList.remove('show'), duration);
+    $toast.className = 'show' + (type === 'warn' ? ' warn' : type === 'err' ? ' err' : '');
+    toastTimer = setTimeout(function() { $toast.className = ''; }, duration);
   }
 
-  // --- FILE I/O ---
-  document.getElementById('fileBtn').addEventListener('click', () => document.getElementById('fileInput').click());
+  function syncUndoRedo() {
+    document.getElementById('undoBtn').disabled = undoStack.length === 0;
+    document.getElementById('redoBtn').disabled = redoStack.length === 0;
+  }
 
-  document.getElementById('fileInput').addEventListener('change', (e) => {
-    const file = e.target.files[0];
+  // ── FILE I/O ───────────────────────────────────────────────────────────────
+  document.getElementById('fileBtn').addEventListener('click', function() {
+    document.getElementById('fileInput').click();
+  });
+
+  document.getElementById('fileInput').addEventListener('change', function(e) {
+    var file = e.target.files[0];
     if (!file) return;
     fileName = file.name;
-    const reader = new FileReader();
-    reader.onload = (ev) => {
+    var reader = new FileReader();
+    reader.onload = function(ev) {
       sourceContent = ev.target.result.replace(/\r\n/g, '\n');
-      document.getElementById('fileBtn').textContent = `📂 ${fileName.substring(0, 6)}...`;
+      document.getElementById('fileBtn').textContent = fileName.substring(0, 8) + (fileName.length > 8 ? '...' : '');
       document.getElementById('exportBtn').style.display = 'inline-block';
       document.getElementById('clearBtn').style.display = 'inline-block';
-      undoStack = []; 
-      document.getElementById('undoBtn').disabled = true;
+      document.getElementById('diffBtn').style.display = 'none';
+      undoStack = []; redoStack = []; lastDiff = [];
+      syncUndoRedo();
       render(sourceContent);
-      toast(`Loaded: ${fileName}`);
+      toast('Loaded: ' + fileName);
     };
     reader.readAsText(file);
+    e.target.value = '';
   });
 
-  document.getElementById('exportBtn').addEventListener('click', () => {
+  document.getElementById('exportBtn').addEventListener('click', function() {
     if (!sourceContent) return;
-    const blob = new Blob([sourceContent], { type: 'text/html' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = fileName;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    toast("💾 Final File Exported!");
+    var blob = new Blob([sourceContent], { type: 'text/html' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url; a.download = fileName;
+    document.body.appendChild(a); a.click();
+    document.body.removeChild(a); URL.revokeObjectURL(url);
+    toast('File exported!');
   });
 
-  // --- COPY PROMPT ---
-  const SUPER_PROMPT = `[Give me the results as Combined Find-and-Replace blocks. Put the old code and the new code inside a single code block separated by exactly ===SPLIT=== on its own line so I only have to click 'copy' once. 
-The 11 Surgery Scenarios You Must Handle:
-Scenario 1 (The Swap): Just changing one value or line for another.
-Scenario 2 (The Excision): Deleting code while keeping the rest of the file clean.
-Scenario 3 (The Injection): "Bolting on" brand new features to existing code.
-Scenario 4 (The Interceptor): Adding a safety check or a rule inside an existing process.
-Scenario 5 (The Migration): Moving a button or a piece of logic from one place to another.
-Scenario 6 (The Refactor): Rewriting a complex math formula or a loop to make it faster.
-Scenario 7 (The Sweep): Renaming a specific word/variable everywhere it appears.
-Scenario 8 (The Database Bump): Updating saved data settings so the app doesn't crash on old info.
-Scenario 9 (The Link Shift): Changing where the app connects to (APIs, URLs, or Tokens).
-Scenario 10 (The Sync): If you change the "Brain" (Web Worker), you must also fix the "Body" (Main Script).
-Scenario 11 (The Layer Fix): Fixing UI issues where things are hidden or unclickable.
-If any variable is declared with const or let inside a function or block that gets re-executed, move the declaration outside to the top of the script or convert it to var. Never declare the same identifier twice in the same scope.
-response must contain ONLY the code blocks. No warnings, no annotations, no ⚠️ symbols. 
-If you have a concern about the existing code, state it in plain text BEFORE the code block.
-Double-check that you haven't left any brackets } or parentheses ) unclosed. 
-For multiple independent fixes, separate each OLD===SPLIT===NEW pair with ===BLOCK===.]`;
-
-  document.getElementById('promptBtn').addEventListener('click', async () => {
-    try { await navigator.clipboard.writeText(SUPER_PROMPT); toast("🤖 Prompt Copied!"); } 
-    catch (err) { toast("❌ Failed to copy"); }
-  });
-
-  // --- UNDO SYSTEM ---
+  // ── UNDO / REDO ────────────────────────────────────────────────────────────
   function pushState() {
     if (sourceContent) {
       undoStack.push(sourceContent);
-      if (undoStack.length > 20) undoStack.shift();
-      document.getElementById('undoBtn').disabled = false;
+      if (undoStack.length > 30) undoStack.shift();
+      redoStack = [];
+      syncUndoRedo();
     }
   }
 
-  document.getElementById('undoBtn').addEventListener('click', () => {
+  document.getElementById('undoBtn').addEventListener('click', function() {
     if (undoStack.length === 0) return;
+    redoStack.push(sourceContent);
     sourceContent = undoStack.pop();
-    if (undoStack.length === 0) document.getElementById('undoBtn').disabled = true;
+    syncUndoRedo();
     render(sourceContent);
-    toast("↩ Undo applied.");
+    toast('Undo applied.');
   });
 
-  // --- RENDER ENGINE WITH INSTANT AUTOSAVE ---
-  let renderTimer;
+  document.getElementById('redoBtn').addEventListener('click', function() {
+    if (redoStack.length === 0) return;
+    undoStack.push(sourceContent);
+    sourceContent = redoStack.pop();
+    syncUndoRedo();
+    render(sourceContent);
+    toast('Redo applied.');
+  });
+
+  // ── RENDER ENGINE ──────────────────────────────────────────────────────────
+  var renderTimer;
   function render(src) {
     clearTimeout(renderTimer);
-    renderTimer = setTimeout(() => {
+    renderTimer = setTimeout(function() {
       try {
-        const bridge = `<script>
-window.onerror = function(msg,src,line,col,err){ window.parent.postMessage({__compilerErr: 'Line '+line+': '+msg},'*'); return true; };
-window.addEventListener('unhandledrejection',function(e){ window.parent.postMessage({__compilerErr:'Promise err: '+(e.reason||'unknown')},'*'); });
-<\/script>`;
+        var bridge = '<script>window.onerror=function(m,s,l){window.parent.postMessage({__compilerErr:"Line "+l+": "+m},"*");return true;};window.addEventListener("unhandledrejection",function(e){window.parent.postMessage({__compilerErr:"Promise: "+(e.reason||"unknown")},"*");});<\/script>';
         $pv.srcdoc = bridge + src;
       } catch(e) {}
-      
-      if (src) localStorage.setItem(AUTOSAVE_KEY, src); // SILENT BACKGROUND SAVE
+      if (src) localStorage.setItem(AUTOSAVE_KEY, src);
       flash();
       if ($astPanel.style.display === 'block') runASTCheck(src);
     }, 50);
   }
 
-  // --- AST ENGINE (GUARD RAILS) ---
-  document.getElementById('astBtn').addEventListener('click', () => {
+  // ── AST ENGINE ─────────────────────────────────────────────────────────────
+  document.getElementById('astBtn').addEventListener('click', function() {
     $astPanel.style.display = $astPanel.style.display === 'block' ? 'none' : 'block';
     if ($astPanel.style.display === 'block' && sourceContent) runASTCheck(sourceContent);
   });
 
-  function runASTCheck(src) {
-    const results = [];
-    const brackets = { '{': 0, '(': 0, '[': 0 };
-    const closers  = { '}': '{', ')': '(', ']': '[' };
-    let inStr = false, strChar = '', inTempl = 0;
-    for (let i = 0; i < src.length; i++) {
-      const ch = src[i];
+  function tokenBalance(src) {
+    var brackets = { '{': 0, '(': 0, '[': 0 };
+    var closers  = { '}': '{', ')': '(', ']': '[' };
+    var inStr = false, strChar = '', inTempl = 0;
+    for (var i = 0; i < src.length; i++) {
+      var ch = src[i];
       if (inStr) { if (ch === '\\') { i++; continue; } if (ch === strChar) inStr = false; continue; }
       if (ch === '`') { inTempl = inTempl ? 0 : 1; continue; }
       if (inTempl) continue;
@@ -269,142 +306,261 @@ window.addEventListener('unhandledrejection',function(e){ window.parent.postMess
       if (brackets[ch] !== undefined) brackets[ch]++;
       if (closers[ch]) brackets[closers[ch]]--;
     }
-    const bOpen = Object.entries(brackets).filter(([,v]) => v !== 0);
+    return brackets;
+  }
+
+  function htmlTagBalance(src) {
+    var tags = ['script','style','div','span','section','header','footer','main','nav','aside','article','form','table','head','body'];
+    var issues = [];
+    tags.forEach(function(tag) {
+      var opens  = (src.match(new RegExp('<' + tag + '[\\s>/]', 'gi')) || []).length;
+      var closes = (src.match(new RegExp('</' + tag + '>', 'gi')) || []).length;
+      if (opens !== closes) issues.push('&lt;' + tag + '&gt; open:' + opens + ' close:' + closes);
+    });
+    return issues;
+  }
+
+  function runASTCheck(src) {
+    var results = [];
+    var brackets = tokenBalance(src);
+    var bOpen = Object.entries(brackets).filter(function(e) { return e[1] !== 0; });
     results.push(bOpen.length === 0
-      ? '<span class="ast-ok">✅ Brackets balanced ({ [ )</span>'
-      : bOpen.map(([k,v]) => `<span class="ast-err">❌ Unbalanced '${k}': ${v>0?'+'+v+' unclosed':Math.abs(v)+' extra'}</span>`).join('<br>'));
-      
-    results.push(`<span style="color:#6272a4">📏 ${src.split('\n').length} lines | ${(src.length/1024).toFixed(1)} KB</span>`);
+      ? '<span class="ast-ok">JS brackets balanced ({ [ (</span>'
+      : bOpen.map(function(e) {
+          return '<span class="ast-err">Unbalanced \'' + e[0] + '\': ' + (e[1] > 0 ? '+' + e[1] + ' unclosed' : Math.abs(e[1]) + ' extra') + '</span>';
+        }).join('<br>'));
+
+    var htmlIssues = htmlTagBalance(src);
+    results.push(htmlIssues.length === 0
+      ? '<span class="ast-ok">HTML tags balanced</span>'
+      : htmlIssues.map(function(i) { return '<span class="ast-warn">Mismatch: ' + i + '</span>'; }).join('<br>'));
+
+    var lines = src.split('\n').length;
+    var kb = (src.length / 1024).toFixed(1);
+    results.push('<span style="color:#6272a4">' + lines + ' lines | ' + kb + ' KB | undo:' + undoStack.length + ' redo:' + redoStack.length + '</span>');
     $astContent.innerHTML = results.join('<br>');
   }
 
   function astGuardAfterApply() {
     if (!sourceContent) return true;
-    const counts = { '{': 0, '(': 0, '[': 0 };
-    const cl = { '}': '{', ')': '(', ']': '[' };
-    let ins = false, ic = '', it = 0;
-    for (let i = 0; i < sourceContent.length; i++) {
-      const c = sourceContent[i];
-      if (ins) { if (c === '\\') { i++; continue; } if (c === ic) ins = false; continue; }
-      if (c === '`') { it = it ? 0 : 1; continue; }
-      if (it) continue;
-      if (c === '"' || c === "'") { ins = true; ic = c; continue; }
-      if (counts[c] !== undefined) counts[c]++;
-      if (cl[c]) counts[cl[c]]--;
-    }
-    const broken = Object.entries(counts).filter(([,v]) => v !== 0);
+    var broken = Object.entries(tokenBalance(sourceContent)).filter(function(e) { return e[1] !== 0; });
     if (broken.length > 0) {
-      showErr(`AST Guard: Syntax corrupted — auto-undoing`);
+      showErr('AST Guard: bracket corruption detected — auto-undoing patch');
       if (undoStack.length > 0) {
         sourceContent = undoStack.pop();
-        if (undoStack.length === 0) document.getElementById('undoBtn').disabled = true;
+        redoStack = [];
+        syncUndoRedo();
         render(sourceContent);
-        toast('🛡️ Guard: auto-undone!', 3000);
+        toast('Guard: auto-undone!', 'warn', 3500);
       }
       return false;
     }
     return true;
   }
 
-  // --- CORE PARSER ---
+  // ── DIFF VIEWER ────────────────────────────────────────────────────────────
+  function escHtml(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  function buildDiff(oldStr, newStr) {
+    var oldLines = oldStr.split('\n');
+    var newLines = newStr.split('\n');
+    var html = '';
+    var maxLen = Math.max(oldLines.length, newLines.length);
+    var limit = Math.min(maxLen, 50);
+    for (var i = 0; i < limit; i++) {
+      var o = oldLines[i]; var n = newLines[i];
+      if (o === undefined) { html += '<div class="diff-add">+ ' + escHtml(n) + '</div>'; }
+      else if (n === undefined) { html += '<div class="diff-del">- ' + escHtml(o) + '</div>'; }
+      else if (o !== n) {
+        html += '<div class="diff-del">- ' + escHtml(o) + '</div>';
+        html += '<div class="diff-add">+ ' + escHtml(n) + '</div>';
+      } else { html += '<div style="color:#444">&nbsp; ' + escHtml(o) + '</div>'; }
+    }
+    if (maxLen > 50) html += '<div style="color:#555">... ' + (maxLen - 50) + ' more lines</div>';
+    return html;
+  }
+
+  document.getElementById('diffBtn').addEventListener('click', function() {
+    $diffPanel.style.display = $diffPanel.style.display === 'block' ? 'none' : 'block';
+  });
+
+  // ── CLIPBOARD FENCE STRIPPER ───────────────────────────────────────────────
+  function stripCodeFences(text) {
+    // Remove ```lang opening fences and ``` closing fences
+    return text
+      .replace(/^[ \t]*```[a-zA-Z0-9]*[ \t]*\r?\n/gm, '')
+      .replace(/^[ \t]*```[ \t]*(\r?\n|$)/gm, '')
+      .trim();
+  }
+
+  // ── CORE PARSER ────────────────────────────────────────────────────────────
   function parseAllBlocks(text) {
-    const cleaned = text.replace(/\/\/\s*(OLD|NEW)\s*CHUNK\s*/gi, '').trim();
-    const units = cleaned.split(/={3}BLOCK={3}/i).map(u => u.trim()).filter(Boolean);
+    var cleaned = stripCodeFences(text)
+      .replace(/\/\/\s*(OLD|NEW)\s*CHUNK\s*/gi, '')
+      .trim();
+
+    var units = cleaned.split(/={3}BLOCK={3}/i).map(function(u) { return u.trim(); }).filter(Boolean);
+
     if (units.length > 1) {
-      return units.map(u => {
+      return units.map(function(u) {
         if (!u.includes('===SPLIT===')) return null;
-        const idx = u.indexOf('===SPLIT===');
-        return { oldCode: u.slice(0, idx).trim(), newCode: u.slice(idx+11).trim() };
+        var idx = u.indexOf('===SPLIT===');
+        var oldCode = u.slice(0, idx).trim();
+        var newCode = u.slice(idx + 11).trim();
+        if (!oldCode) return null;
+        return { oldCode: oldCode, newCode: newCode }; // newCode can be '' = deletion
       }).filter(Boolean);
     }
-    
-    // Fallback single block parser
+
+    // Single block
     if (cleaned.includes('===SPLIT===')) {
-      const idx = cleaned.indexOf('===SPLIT===');
-      const oldPart = cleaned.slice(0, idx).trim();
-      const newPart = cleaned.slice(idx + 11).trim();
-      if (oldPart.length > 0 && newPart.length > 0) return [{ oldCode: oldPart, newCode: newPart }];
+      var idx = cleaned.indexOf('===SPLIT===');
+      var oldPart = cleaned.slice(0, idx).trim();
+      var newPart = cleaned.slice(idx + 11).trim();
+      if (oldPart.length > 0) return [{ oldCode: oldPart, newCode: newPart }];
     }
     return [];
   }
 
-  function findFingerprintedChunk(source, chunk) {
-    const buildResult = (startIdx, matchedText) => {
-      const lineStartIdx = source.lastIndexOf('\n', startIdx - 1) + 1;
-      const leadingSpace = source.substring(lineStartIdx, startIdx).match(/^[ \t]*/)[0];
-      return { originalText: matchedText, startIndex: startIdx, endIndex: startIdx + matchedText.length, baseIndent: leadingSpace };
-    };
-    const literalIdx = source.indexOf(chunk);
-    if (literalIdx !== -1) return buildResult(literalIdx, chunk);
+  // ── FINGERPRINT SEARCH ─────────────────────────────────────────────────────
+  function countOccurrences(source, chunk) {
+    var count = 0, pos = 0;
+    while ((pos = source.indexOf(chunk, pos)) !== -1) { count++; pos++; }
+    return count;
+  }
 
+  function findFingerprintedChunk(source, chunk) {
+    function buildResult(startIdx, matchedText) {
+      var lineStartIdx = source.lastIndexOf('\n', startIdx - 1) + 1;
+      var leadingSpace = source.substring(lineStartIdx, startIdx).match(/^[ \t]*/)[0];
+      return { startIndex: startIdx, endIndex: startIdx + matchedText.length, baseIndent: leadingSpace, matchedText: matchedText };
+    }
+
+    // 1. Exact literal match
+    var literalIdx = source.indexOf(chunk);
+    if (literalIdx !== -1) {
+      var total = countOccurrences(source, chunk);
+      if (total > 1) {
+        toast('OLD block matched ' + total + ' times — patched first.\nExpand OLD block if wrong.', 'warn', 5000);
+      }
+      return buildResult(literalIdx, chunk);
+    }
+
+    // 2. Fuzzy whitespace-tolerant match
     try {
-      const escaped = chunk.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '\\s+');
-      const allMatches = [...source.matchAll(new RegExp(escaped, 'g'))];
+      var escaped = chunk.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '\\s+');
+      var allMatches = Array.from(source.matchAll(new RegExp(escaped, 'g')));
+      if (allMatches.length > 1) {
+        toast('Fuzzy match found ' + allMatches.length + ' times — patched first.\nExpand OLD block if wrong.', 'warn', 5000);
+      }
       if (allMatches.length > 0) return buildResult(allMatches[0].index, allMatches[0][0]);
     } catch(e) {}
+
     return null;
   }
 
-  // --- INSTANT APPLY PIPELINE ---
-  async function autoLockAndApply(parsed) {
-    if (!sourceContent) return false;
-    const loc = findFingerprintedChunk(sourceContent, parsed.oldCode);
-    if (!loc) return false; 
+  // ── BIDIRECTIONAL INDENT FIX ───────────────────────────────────────────────
+  function reindent(code, baseIndent) {
+    if (!code) return code; // empty newCode = deletion, return as-is
+    var lines = code.split('\n');
+    var nonEmpty = lines.filter(function(l) { return l.trim(); });
+    if (nonEmpty.length === 0) return code;
+    var minIndent = Math.min.apply(null, nonEmpty.map(function(l) { return l.match(/^[ \t]*/)[0].length; }));
+    var neededLen = baseIndent.length;
+    if (minIndent === neededLen) return code;
+    return lines.map(function(l, i) {
+      if (i === 0) return l; // first line inherits splice position
+      if (!l.trim()) return l;
+      var stripped = l.slice(minIndent);
+      return baseIndent + stripped;
+    }).join('\n');
+  }
 
-    pushState();
-    let newT = parsed.newCode.replace(/\r\n/g, '\n');
-    
-    if (newT.length > 0) {
-      let lines = newT.split('\n');
-      let minIndent = Math.min(...lines.filter(l => l.trim()).map(l => l.match(/^[ \t]*/)[0].length));
-      let neededIndent = loc.baseIndent;
-      if (neededIndent.length > minIndent) {
-        const padding = neededIndent.substring(minIndent);
-        lines = lines.map((l, i) => i === 0 ? l : padding + l);
-        newT = lines.join('\n');
-      }
+  // ── APPLY PIPELINE ─────────────────────────────────────────────────────────
+  function autoLockAndApply(parsed, blockNum) {
+    if (!sourceContent) return false;
+    var loc = findFingerprintedChunk(sourceContent, parsed.oldCode);
+    if (!loc) {
+      var preview = parsed.oldCode.substring(0, 50).replace(/\n/g, ' ');
+      toast('Block ' + blockNum + ': no match found.\n"' + preview + '..."', 'err', 6000);
+      return false;
     }
 
+    // Capture diff before patching
+    lastDiff.push({ old: loc.matchedText, nw: parsed.newCode });
+
+    pushState();
+    var newT = reindent(parsed.newCode.replace(/\r\n/g, '\n'), loc.baseIndent);
     sourceContent = sourceContent.slice(0, loc.startIndex) + newT + sourceContent.slice(loc.endIndex);
-    render(sourceContent); // Instantly updates iframe and saves to localStorage
+    render(sourceContent);
     return astGuardAfterApply();
   }
 
-  // --- ONE-CLICK PASTE TRIGGER ---
-  document.getElementById('pasteBtn').addEventListener('click', async () => {
-    try {
-      const text = await navigator.clipboard.readText();
-      if (!text || text === lastClip) { toast("⚠️ No new clipboard data."); return; }
-      lastClip = text;
+  // ── PASTE TRIGGER ──────────────────────────────────────────────────────────
+  document.getElementById('pasteBtn').addEventListener('click', function() {
+    navigator.clipboard.readText().then(function(raw) {
+      if (!raw) { toast('Clipboard is empty.', 'warn'); return; }
 
-      // 1. Init from Scratch
-      if (!sourceContent && text.includes('<html')) {
-        sourceContent = text;
+      // Init from scratch if no file loaded yet
+      if (!sourceContent && (raw.includes('<html') || raw.includes('<!DOCTYPE'))) {
+        sourceContent = raw.replace(/\r\n/g, '\n');
         document.getElementById('exportBtn').style.display = 'inline-block';
         document.getElementById('clearBtn').style.display = 'inline-block';
-        render(text); 
-        toast("⚡ Initialized!");
+        render(sourceContent);
+        lastClip = raw;
+        toast('Initialized from clipboard!');
         return;
       }
 
-      // 2. Instant Apply
-      if (sourceContent) {
-        const blocks = parseAllBlocks(text);
-        if (blocks.length > 0) {
-          let allOk = true;
-          for (let bi = blocks.length - 1; bi >= 0; bi--) {
-            const applied = await autoLockAndApply(blocks[bi]);
-            if (!applied) { allOk = false; break; }
-          }
-          if (allOk) toast(`⚡ Applied ${blocks.length} patch(es) & Saved!`);
-        } else {
-          toast("❌ No valid ===SPLIT=== blocks found.");
-        }
+      // Deduplicate
+      if (raw === lastClip) { toast('Same clipboard — nothing new to apply.', 'warn'); return; }
+      lastClip = raw;
+
+      if (!sourceContent) {
+        toast('Load a file first, or paste a full HTML page to initialise.', 'warn', 4000);
+        return;
       }
-    } catch (err) {
-      toast("❌ Allow clipboard permissions!");
-    }
+
+      var blocks = parseAllBlocks(raw);
+      if (blocks.length === 0) {
+        toast('No valid ===SPLIT=== blocks found.\nCheck for missing separator or stray code fences.', 'err', 5000);
+        return;
+      }
+
+      lastDiff = [];
+      var applied = 0;
+
+      // Apply bottom-to-top so indices stay valid for multi-block
+      for (var bi = blocks.length - 1; bi >= 0; bi--) {
+        var ok = autoLockAndApply(blocks[bi], bi + 1);
+        if (ok) { applied++; } else { break; }
+      }
+
+      if (applied === blocks.length) {
+        // Populate diff panel
+        $diffContent.innerHTML = lastDiff.map(function(d, i) {
+          return '<div style="margin-bottom:6px;color:#8be9fd">Block ' + (i + 1) + ':</div>' + buildDiff(d.old, d.nw);
+        }).join('<hr style="border-color:#333;margin:8px 0">');
+        document.getElementById('diffBtn').style.display = 'inline-block';
+        toast('Applied ' + applied + '/' + blocks.length + ' patch(es) and saved!');
+      }
+    }).catch(function() {
+      toast('Clipboard permission denied — allow access and retry.', 'err', 4000);
+    });
   });
+
+  // ── PWA SERVICE WORKER REGISTRATION ─────────────────────────────────────────
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function() {
+      navigator.serviceWorker.register('sw.js').then(function(registration) {
+        console.log('ServiceWorker registration successful with scope: ', registration.scope);
+      }, function(err) {
+        console.log('ServiceWorker registration failed: ', err);
+      });
+    });
+  }
 </script>
 </body>
 </html>
