@@ -139,6 +139,7 @@ button.btn:disabled { opacity: 0.5; cursor: not-allowed; border-color: #555; col
   <button id="undoBtn" class="btn" style="border-color: #ffb86c; color: #ffb86c;" disabled title="Ctrl+Z">↩ Undo</button>
   <button id="redoBtn" class="btn" style="border-color: #ffb86c; color: #ffb86c;" disabled title="Ctrl+Y">↪ Redo</button>
   <button id="fileBtn" class="btn">🔗 Link File</button>
+  <button id="pasteSourceBtn" class="btn" style="border-color: #f1fa8c; color: #f1fa8c;" title="Paste complete code as source">📄 Paste Source</button>
   <button id="promptBtn" class="btn" style="border-color: #8be9fd; color: #8be9fd;">🤖 Copy AI Prompt</button>
   <button id="exportBtn" class="btn" style="border-color: #8be9fd; color: #8be9fd;" title="Manual Save for Mobile">💾 Export</button>
   <button id="pasteProcessBtn" class="btn" style="border-color: #50fa7b; color: #50fa7b;" title="Ctrl+V to Auto-Patch">📋 Paste & Process</button>
@@ -432,6 +433,24 @@ button.btn:disabled { opacity: 0.5; cursor: not-allowed; border-color: #555; col
       render(sourceContent); syncEditorContent(sourceContent);
       toast(`Linked: ${file.name}`);
     } catch (err) {}
+  });
+
+  document.getElementById('pasteSourceBtn').addEventListener('click', async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (!text) return toast("❌ Clipboard is empty");
+      if (sourceContent && !confirm("Overwrite current workspace with clipboard content?")) return;
+      fileHandle = null;
+      sourceContent = text.replace(/\r\n/g, '\n');
+      document.getElementById('fileBtn').textContent = `🔗 Link File`;
+      undoStack = []; redoStack = [];
+      document.getElementById('undoBtn').disabled = true;
+      document.getElementById('redoBtn').disabled = true;
+      render(sourceContent); syncEditorContent(sourceContent);
+      toast("📄 Source pasted successfully!");
+    } catch (err) {
+      toast("❌ Failed to read clipboard");
+    }
   });
 
   function findFingerprintedChunk(source, chunk) {
